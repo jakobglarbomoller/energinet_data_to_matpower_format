@@ -32,6 +32,8 @@ function [] = read_energinet_data()
 %  If applying the code on data provided by Energinet the user is 
 %  accuntable for complying with any requirements or guidelines
 %  put forward by Energinet.
+%
+% Thanks to Energinet for making the data available.
 % 
 % Jakob Glarbo Møller, Technical University of Denmark, 2017
 % jglmo@elektro.dtu.dk
