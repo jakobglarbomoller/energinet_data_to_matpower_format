@@ -42,7 +42,7 @@ addpath ../matpower6.0/
 
 system_mva_base = 100;
 
-path_to_file = '/media/jglmo/sharedArchive/win_vbox_share/ENDK_2020/';
+path_to_file = '../data/ENDK_2020/';
 file_name = 'endk_2020_ohl_model.xlsx';
 
 root_node_in_east = 1; % dke nodes are assigned root in bus 1(0)
@@ -320,12 +320,21 @@ for c = 1:length(control_type_str)
     end
 end
 
-
+gen_types = {'solar' 'WindOn' 'WindOff' 'gas' 'hydro' 'other'};
+generator_type = zeros(size(generators.bus));
+for c = 1:length(generators.bus)
+    name = generators.name{c};
+    for gtype = 1:length(gen_types)
+        if strfind(name,gen_types{gtype})
+            generator_type(c) = gtype;
+        end
+    end
+end
 
 
 % done reading - start writing:
 
-generators_table = [generators.bus generators.Pg generators.Qg generators.Qmax generators.Qmin scheduled_voltages generators.mbase generators.status  generators.Pmax generators.Pmin];
+generators_table = [generators.bus generators.Pg generators.Qg generators.Qmax generators.Qmin scheduled_voltages generators.mbase generators.status  generators.Pmax generators.Pmin generator_type];
 clear generators
 
 n = length(bus.numbers);
@@ -393,6 +402,34 @@ for k = 1:length(generators_table(:,1))
     end    
 end
 
+east.gentypes = east.generator(:,end);
+east.generator(:,end)=[];
+west.gentypes = west.generator(:,end);
+west.generator(:,end)=[];
+
+% Cost Functions:
+%     1  MODEL       cost model, 1 = piecewise linear, 2 = polynomial
+%     2  STARTUP     startup cost in US dollars
+%     3  SHUTDOWN    shutdown cost in US dollars
+%     4  NCOST       number of cost coefficients to follow for polynomial cost
+%                    function, or number of data points for piecewise linear
+%     5  COST        parameters defining total cost function begin in this col
+%                   (MODEL = 1) : p0, f0, p1, f1, ..., pn, fn
+%                        where p0 < p1 < ... < pn and the cost f(p) is defined
+%                        by the coordinates (p0,f0), (p1,f1), ..., (pn,fn) of
+%                        the end/break-points of the piecewise linear cost
+%                   (MODEL = 2) : cn, ..., c1, c0
+%                        n+1 coefficients of an n-th order polynomial cost fcn,
+%                        starting with highest order, where cost is
+%                        f(p) = cn*p^n + ... + c1*p + c0
+
+cost_functions = [ 2  0  0  2  0.0 0.08  0.0;... % central
+                   2  0  0  2  0.0 0.10  0.0;...% solar
+                   2  0  0  2  0.0 0.10  0.0;...% WindOn
+                   2  0  0  2  0.0 0.04  0.0;...% WindOff
+                   2  0  0  2  0.0 0.08  0.0;...% gas
+                   2  0  0  2  0.0 0.04  0.0;...% hydro
+                   2  0  0  2  0.0 0.10  0.0];  % other
 
 dk_east_file_id = fopen('case_dk_east.m','w+');
 fprintf(dk_east_file_id,'function [mpc] = case_dk_east()\n');
@@ -423,14 +460,14 @@ fprintf(dk_east_file_id, '%%	bus	Pg	Qg	Qmax	Qmin	Vg	mBase	status	Pmax	Pmin\n');
 fprintf(dk_east_file_id,'mpc.gen = [ \n');
 for k = 1:length(east.generator(:,1))
                     %	bus	Pg	Qg	Qmax	Qmin	Vg	mBase	status	Pmax	Pmin
-    fprintf(dk_east_file_id,' %8d %10.4f %10.4f %10.4f %10.4f %10.4f %10.4f %4d %10.4f %10.4f\n',east.generator(k,:));
+    fprintf(dk_east_file_id,' %8d %10.4f %10.4f %10.4f %10.4f %10.4f %10.4f %4d %10.4f %10.4f \n',east.generator(k,:));
 end
 fprintf(dk_east_file_id,'];\n');
 
-% spoof data:
+
 fprintf(dk_east_file_id,'mpc.gencost = [ \n');
 for k = 1:length(east.generator(:,1))
-    fprintf(dk_east_file_id,' %4d %4d %4d %4d %10.4f %10.4f %4d\n',[	2	0	0	3	0.01	40	0;]);
+    fprintf(dk_east_file_id,' %4d %10.4f %10.4f %4d %10.4f %10.4f %10.4f\n', cost_functions(east.gentypes(k)+1,:));
 end
 fprintf(dk_east_file_id,'];\n');
 
@@ -440,6 +477,21 @@ for k = 1:length(east.bus(:,1))
     fprintf(dk_east_file_id, '%8d %8d %% %s\n', east.bus_map(k,:), east.bus_names{k});
 end
 fprintf(dk_east_file_id,'];\n');
+
+
+gentype_names = {'central' gen_types{:}};
+
+fprintf(dk_east_file_id,'mpc.gen_types = [ \n');
+for k = 1:length(east.gentypes)
+    fprintf(dk_east_file_id, '%8d %% %s\n', east.gentypes(k), gentype_names{east.gentypes(k)+1});
+end
+fprintf(dk_east_file_id,'];\n');
+
+fprintf(dk_east_file_id,'%% area_names: \n');
+for k = 1:length(area_names)
+    fprintf(dk_east_file_id, '%% %8d %% %s\n', k, area_names{k});
+end
+fprintf(dk_east_file_id,'\n');
 
 fclose(dk_east_file_id);
 clear east
@@ -479,10 +531,11 @@ for k = 1:length(west.generator(:,1))
 end
 fprintf(dk_west_file_id,'];\n');
 
-% spoof data:
+
 fprintf(dk_west_file_id,'mpc.gencost = [ \n');
 for k = 1:length(west.generator(:,1))
-    fprintf(dk_west_file_id,' %4d %4d %4d %4d %10.4f %10.4f %4d\n',[	2	0	0	3	0.01	40	0;]);
+     fprintf(dk_west_file_id,' %4d %10.4f %10.4f %4d %10.4f %10.4f %10.4f\n',cost_functions(west.gentypes(k)+1,:));
+
 end
 fprintf(dk_west_file_id,'];\n');
 
@@ -493,6 +546,18 @@ fprintf(dk_east_file_id, '%8d %8d %% %s\n', west.bus_map(k,:), west.bus_names{k}
     %    fprintf(dk_west_file_id, '%8d %8d\n', west.bus_map(k,:));
 end
 fprintf(dk_west_file_id,'];\n');
+
+fprintf(dk_west_file_id,'mpc.gen_types = [ \n');
+for k = 1:length(west.gentypes)
+    fprintf(dk_west_file_id, '%8d %% %s\n', west.gentypes(k), gentype_names{west.gentypes(k)+1});
+end
+fprintf(dk_west_file_id,'];\n');
+
+fprintf(dk_east_file_id,'%% area_names: \n');
+for k = 1:length(area_names)
+    fprintf(dk_east_file_id, '%% %8d %% %s\n', k, area_names{k});
+end
+fprintf(dk_east_file_id,'\n');
 
 fclose(dk_west_file_id);
 
