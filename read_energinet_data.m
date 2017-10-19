@@ -79,6 +79,8 @@ angle = (actual_tap - neutral_tap) .* mod(d_angle,180);
 trafo_mva = num(5:end,6);
 z_base = num(5:end,4).^2./system_mva_base;
 
+num_trafos = length(dU);
+
 uk = num(5:end,7);
 Pcu = num(5:end,8);
 z = uk./(100.*z_base);
@@ -148,6 +150,7 @@ tbus = [MV_bus; LV_bus; LV_bus];
 r = [r_hm; r_hl; r_ml];
 x = [x_hm; x_hl; x_ml];
 
+num_trafos = num_trafos + length(fbus);
 
 branch.fbus = [branch.fbus; fbus];
 branch.tbus = [branch.tbus; tbus];
@@ -156,9 +159,9 @@ branch.x = [branch.x; x];
 branch.b = [branch.b; zeros(size(r))];
 branch.ratio = [branch.ratio; ratio];
 branch.angle = [branch.angle; zeros(size(ratio))];
-branch.rateA = zeros(size(branch.fbus));
-branch.rateB = zeros(size(branch.fbus));
-branch.rateC = zeros(size(branch.fbus));
+branch.rateA = [branch.rateA; zeros(num_trafos,1)];
+branch.rateB = [branch.rateB; zeros(num_trafos,1)];
+branch.rateC = [branch.rateC; zeros(num_trafos,1)];
 branch.status = ones(size(branch.fbus));
 branch.angmin = -360*ones(size(branch.fbus));
 branch.angmax = 360*ones(size(branch.fbus));
@@ -452,7 +455,7 @@ fprintf(dk_east_file_id, '%%	fbus      tbus       r          x          b       
 fprintf(dk_east_file_id,'mpc.branch = [ \n');
 for k = 1:length(east.branch(:,1))
                     %	fbus	tbus	r	x	b	rateA	rateB	rateC	ratio	angle	status	angmin	angmax	Pf	Qf	Pt	Qt	mu_Sf	mu_St	mu_angmin	mu_angmax
-    fprintf(dk_east_file_id,' %8d %8d %10.4f %10.4f %10.4f %10.4f %10.4f %10.4f %10.4f %10.4f %4d %10.4f %10.4f\n',east.branch(k,:));
+    fprintf(dk_east_file_id,' %8d %8d %10.4f %10.4f %10.4f %10.0f %10.0f %10.0f %10.4f %10.4f %4d %10.4f %10.4f\n',east.branch(k,:));
 end
 fprintf(dk_east_file_id,'];\n');
 
