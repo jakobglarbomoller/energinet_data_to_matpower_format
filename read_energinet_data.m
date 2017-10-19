@@ -161,7 +161,7 @@ branch.rateB = zeros(size(branch.fbus));
 branch.rateC = zeros(size(branch.fbus));
 branch.status = ones(size(branch.fbus));
 branch.angmin = -360*ones(size(branch.fbus));
-branch.angmax = -360*ones(size(branch.fbus));
+branch.angmax = 360*ones(size(branch.fbus));
 
 
 % 0-impedance branches are assigned a small non-0 impedance
@@ -423,13 +423,14 @@ west.generator(:,end)=[];
 %                        starting with highest order, where cost is
 %                        f(p) = cn*p^n + ... + c1*p + c0
 
-cost_functions = [ 2  0  0  2  0.0 0.08  0.0;... % central
-                   2  0  0  2  0.0 0.10  0.0;...% solar
-                   2  0  0  2  0.0 0.10  0.0;...% WindOn
-                   2  0  0  2  0.0 0.04  0.0;...% WindOff
-                   2  0  0  2  0.0 0.08  0.0;...% gas
-                   2  0  0  2  0.0 0.04  0.0;...% hydro
-                   2  0  0  2  0.0 0.10  0.0];  % other
+
+cost_functions = [ 2 7868.03    0    2     0.00    80.00   1980.16;... % central
+                   2    0       0    2     0.00    100.00  789.70;...% solar
+                   2    0       0    2     0.00    40.00   78.15;...% WindOn
+                   2    0       0    2     0.00    130.00  1305.48;...% WindOff
+                   2 5666.64    0    2     0.00    80.00   564.94;...% gas
+                   2    0       0    2     0.00    100.00  155.86;...% hydro
+                   2 606.82     0    2     0.00    80.00   60.50];  % other
 
 dk_east_file_id = fopen('case_dk_east.m','w+');
 fprintf(dk_east_file_id,'function [mpc] = case_dk_east()\n');
