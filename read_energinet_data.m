@@ -77,15 +77,18 @@ actual_tap = num(5:end,14);
 ratio = 1.0 + (actual_tap - neutral_tap) .* dU;
 angle = (actual_tap - neutral_tap) .* mod(d_angle,180);
 trafo_mva = num(5:end,6);
-z_base = num(5:end,4).^2./system_mva_base;
+z_base_trafo = num(5:end,4).^2./trafo_mva;
+z_base_system = num(5:end,4).^2./system_mva_base;
 
 num_trafos = length(dU);
 
 uk = num(5:end,7);
 Pcu = num(5:end,8);
-z = uk./(100.*z_base);
-r = Pcu./(1000*trafo_mva)./z_base;
+z = uk./(100).*z_base_trafo./z_base_system;
+r = Pcu./(1000*trafo_mva).*z_base_trafo./z_base_system;
 x = sqrt(z.^2 - r.^2);
+
+
 
 branch.fbus = [branch.fbus; num(5:end,1)];
 branch.tbus = [branch.tbus; num(5:end,2)];
@@ -94,6 +97,8 @@ branch.x = [branch.x; x];
 branch.b = [branch.b; zeros(size(r))];
 branch.ratio = [branch.ratio; ratio];
 branch.angle = [branch.angle; angle];
+
+[branch.r(end-num_trafos:end) branch.x(end-num_trafos:end)]
 
 % read 3w-trafos and convert parameters
 [num, str] = xlsread([path_to_file file_name],'Transformer3');
@@ -107,25 +112,26 @@ trafo_mva = num(5:end,8);
 HV_uk = num(5:end,9);
 HV_Pcu = num(5:end,12);
 
-z_base = num(5:end,5).^2/system_mva_base;
-z_hm = (HV_uk./100)./z_base;
-r_hm = (HV_Pcu./(1000*trafo_mva))./z_base;
+z_base_trafo = num(5:end,5).^2./trafo_mva;
+z_base_system = num(5:end,5).^2./system_mva_base;
+z_hm = (HV_uk./100).*(z_base_trafo./z_base_system);
+r_hm = (HV_Pcu./(1000*trafo_mva)).*(z_base_trafo./z_base_system);
 x_hm = sqrt(z_hm.^2 - r_hm.^2);
 
 MV_uk = num(5:end,10);
 MV_Pcu = num(5:end,13);
 
-z_base = num(5:end,5).^2/system_mva_base;
-z_hl = (MV_uk./100)./z_base;
-r_hl = (MV_Pcu./(1000*trafo_mva))./z_base;
+z_hl = (MV_uk./100).*(z_base_trafo./z_base_system);
+r_hl = (MV_Pcu./(1000*trafo_mva)).*(z_base_trafo./z_base_system);
 x_hl = sqrt(z_hl.^2 - r_hl.^2);
 
 LV_uk = num(5:end,11);
 LV_Pcu = num(5:end,14);
 
-z_base = num(5:end,6).^2/system_mva_base;
-z_ml = (LV_uk./100)./z_base;
-r_ml = (LV_Pcu./(1000*trafo_mva))./z_base;
+z_base_system = num(5:end,6).^2./system_mva_base;
+z_base_trafo = num(5:end,6).^2./trafo_mva;
+z_ml = (LV_uk./100).*(z_base_trafo./z_base_system);
+r_ml = (LV_Pcu./(1000*trafo_mva)).*(z_base_trafo./z_base_system);
 x_ml = sqrt(z_ml.^2 - r_ml.^2);
 
 ratio_data = 1 + (num(5:end,21)-num(5:end,20)).*num(5:end,22)/100;
@@ -169,6 +175,7 @@ branch.angmax = 360*ones(size(branch.fbus));
 
 % 0-impedance branches are assigned a small non-0 impedance
 branch.x(branch.x<1e-4)=1e-4;
+%branch.r(branch.r<1e-5)=1e-5;
 
 
 %%% Assigning nodes to synchronous area - DK-east and DK-west by tree
@@ -427,14 +434,16 @@ west.generator(:,end)=[];
 %                        f(p) = cn*p^n + ... + c1*p + c0
 
 
-cost_functions = [ 2 7868.03    0    2     0.00    80.00   1980.16;... % central
-                   2    0       0    2     0.00    100.00  789.70;...% solar
-                   2    0       0    2     0.00    40.00   78.15;...% WindOn
-                   2    0       0    2     0.00    130.00  1305.48;...% WindOff
-                   2 5666.64    0    2     0.00    80.00   564.94;...% gas
-                   2    0       0    2     0.00    100.00  155.86;...% hydro
-                   2 606.82     0    2     0.00    80.00   60.50];  % other
-
+cost_functions = [
+            2 8e3 0 2 0.0 80  15 ; % central
+            2 0   0 2 0.0 100 100; % solar
+            2 0   0 2 0.0 40  20 ; % WindOn
+            2 0   0 2 0.0 130 40 ; % WindOff
+            2 6e3 0 2 0.0 80  10 ; % gas
+            2 0   0 2 0.0 40  20 ; % hydro
+            2 6e3 0 2 0.0 80  10 ];% other
+   
+        
 dk_east_file_id = fopen('case_dk_east.m','w+');
 fprintf(dk_east_file_id,'function [mpc] = case_dk_east()\n');
 
@@ -538,7 +547,7 @@ fprintf(dk_west_file_id,'];\n');
 
 fprintf(dk_west_file_id,'mpc.gencost = [ \n');
 for k = 1:length(west.generator(:,1))
-     fprintf(dk_west_file_id,' %4d %10.4f %10.4f %4d %10.4f %10.4f %10.4f\n',cost_functions(west.gentypes(k)+1,:));
+     fprintf(dk_west_file_id,' %4d %10.4f %10.4f %4d %10.4f %10.4f %10.4f\n',cost_functions(west.gentypes(k)+1,1:6),cost_functions(west.gentypes(k)+1,7).*west.generator(k,9));
 
 end
 fprintf(dk_west_file_id,'];\n');
