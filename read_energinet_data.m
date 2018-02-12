@@ -43,7 +43,8 @@ addpath ../matpower6.0/
 system_mva_base = 100;
 
 path_to_file = '../data/ENDK_2020/';
-file_name = 'endk_2020_ohl_model.xlsx';
+file_name = 'PublicDataExport_v1.3_1450706334.xlsx';
+% file_name = 'endk_2020_ohl_model.xlsx';
 
 root_node_in_east = 1; % dke nodes are assigned root in bus 1(0)
 root_node_in_west = 5; % dkw nodes are assidned root in bus 5(4)
@@ -58,7 +59,7 @@ z_base = num(5:end,7).^2/system_mva_base;
 branch.r = num(5:end,8)./z_base;
 branch.x = num(5:end,9)./z_base;
 branch.b = 10^(-6)*num(5:end,11).*z_base;
-branch.rateA = num(5:end,6).*num(5:end,7);
+branch.rateA = 3*num(5:end,6).*num(5:end,7);
 branch.rateB = 1.1*branch.rateA; % Short-term permissible loadings are not specified in dataset.
 branch.rateC = 1.2*branch.rateA; % Short-term permissible loadings are not specified in dataset.
 branch.ratio = zeros(size(branch.fbus));
@@ -433,16 +434,26 @@ west.generator(:,end)=[];
 %                        starting with highest order, where cost is
 %                        f(p) = cn*p^n + ... + c1*p + c0
 
+% cost_functions = [
+%             2 8e3 0 2 0.0 80  15 ; % central
+%             2 0   0 2 0.0 100 100; % solar
+%             2 0   0 2 0.0 40  20 ; % WindOn
+%             2 0   0 2 0.0 130 40 ; % WindOff
+%             2 6e3 0 2 0.0 80  10 ; % gas
+%             2 0   0 2 0.0 40  20 ; % hydro
+%             2 6e3 0 2 0.0 80  10 ];% other
 
+% alternative cost functions sets marginal price of renewables very low to
+% ensure dispatch
 cost_functions = [
             2 8e3 0 2 0.0 80  15 ; % central
-            2 0   0 2 0.0 100 100; % solar
-            2 0   0 2 0.0 40  20 ; % WindOn
-            2 0   0 2 0.0 130 40 ; % WindOff
+            2 0   0 2 0.0 1   1  ; % solar
+            2 0   0 2 0.0 1   1  ; % WindOn
+            2 0   0 2 0.0 1   1  ; % WindOff
             2 6e3 0 2 0.0 80  10 ; % gas
             2 0   0 2 0.0 40  20 ; % hydro
             2 6e3 0 2 0.0 80  10 ];% other
-   
+
         
 dk_east_file_id = fopen('case_dk_east.m','w+');
 fprintf(dk_east_file_id,'function [mpc] = case_dk_east()\n');
